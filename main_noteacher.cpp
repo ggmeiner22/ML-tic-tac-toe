@@ -7,7 +7,7 @@
 
 int main() {
     Learner learner;
-    Experience::trainSelfPlay(learner, 20);
+    Experience::trainSelfPlay(learner, 1000);
     learner.printWeights();
 
     int wins=0, losses=0, ties=0;

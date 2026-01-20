@@ -6,6 +6,7 @@
 #include <fstream>
 #include <sstream>
 #include <iostream>
+#include <vector>
 
 void Experience::trainFromTeacherFile(const std::string& path, Learner& learner, int gamesToUse) {
     std::ifstream fin(path);
@@ -23,6 +24,7 @@ void Experience::trainFromTeacherFile(const std::string& path, Learner& learner,
         Board b; b.reset();
         int player = +1;
 
+        // Store after-states separately for each side (same as before)
         std::vector<Board> statesX;
         std::vector<Board> statesO;
 
@@ -57,62 +59,56 @@ void Experience::trainFromTeacherFile(const std::string& path, Learner& learner,
     std::cout << "Teacher training done. Games used: " << used << "\n";
 }
 
-
 void Experience::trainSelfPlay(Learner& learner, int games) {
+    // True self-play: the SAME learner controls both X and O.
+    // Train from both sides and use successor-state bootstrapping:
+    //   V_train(s) = V_hat(s') for nonterminal s, and terminal reward for terminal s.
+    struct Sample {
+        Board after; // after-state (board after the move)
+        int p;       // player who just moved (+1 for X, -1 for O)
+    };
+
     for (int g = 0; g < games; g++) {
         Board b; b.reset();
 
-        // We will collect training examples for BOTH sides:
-        // Each entry is (after-state, playerWhoJustMoved)
-        struct Sample { Board after; int player; };
         std::vector<Sample> samples;
+        samples.reserve(9);
 
         int player = +1; // X starts
         while (!b.terminal()) {
-            // Learner chooses best move from this player's perspective
+            // Both sides choose moves using the current evaluation function
             auto mv = Player::chooseBestMove(b, player, learner);
             b.place(mv.first, mv.second, player);
 
             // store after-state for the player who just moved
             samples.push_back({b, player});
 
-            // next turn
             player = -player;
         }
 
-        // Now b is terminal. Define terminal values for each player.
-        // (Use +1/-1/0 or +100/-100/0 based on your assignment.)
         int w = b.winner();
-        auto terminalValueFor = [&](int p)->double {
-            if (w == 0) return 0.0;        // tie
-            if (w == p) return 100.0;        // p wins
-            return -100.0;                   // p loses
+        auto terminalValueFor = [&](int p) -> double {
+            if (w == 0) return 0.0;
+            return (w == p) ? 1.0 : -1.0;
         };
 
-        // Train using Mitchell target:
-        // For each after-state s_t (player p just moved), target is:
-        // - terminalValueFor(p) if s_t is terminal
-        // - V_hat(successor(s_t)) otherwise, where successor is the next after-state
+        // Bootstrapped LMS updates through the game
+        // target for sample i is:
+        //   terminal: outcome for that player
+        //   nonterminal: predicted value of successor after-state, evaluated from same player's perspective
         for (size_t i = 0; i < samples.size(); i++) {
             const Board& s = samples[i].after;
-            int p = samples[i].player;
+            int p = samples[i].p;
 
-            double target = 0.0;
-            if (s.terminal()) {
+            double target;
+            if (s.terminal() || i + 1 >= samples.size()) {
                 target = terminalValueFor(p);
             } else {
-                // successor after-state exists because s isn't terminal
                 const Board& succ = samples[i + 1].after;
-
-                // IMPORTANT: Evaluate successor from the SAME player's perspective (p),
-                // because V(b) is "value of board for player p"
-                auto x_succ = FeatureEncoder::encode(succ, p);
-                target = learner.predict(x_succ);
+                target = learner.predict(FeatureEncoder::encode(succ, p));
             }
 
-            // Update on current state from p's perspective
-            auto x = FeatureEncoder::encode(s, p);
-            learner.update(x, target);
+            learner.update(FeatureEncoder::encode(s, p), target);
         }
     }
 

@@ -12,7 +12,7 @@ int main(int argc, char** argv) {
     }
 
     Learner learner;
-    Experience::trainFromTeacherFile(argv[1], learner, 20);
+    Experience::trainFromTeacherFile(argv[1], learner, 100);
     learner.printWeights();
 
     int wins=0, losses=0, ties=0;
