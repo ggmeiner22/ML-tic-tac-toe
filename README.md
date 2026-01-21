@@ -4,7 +4,7 @@
 ```
 g++ -std=c++11 -O2 -Iinclude -o testNoTeacher   main_noteacher.cpp src/*.cpp
 or
-gcc -std=c++11 -O2 -Iinclude main_not_teacher.cpp src/*.cpp -lstdc++ -o testNoTeacher  
+gcc -std=c++11 -O2 -Iinclude main_noteacher.cpp src/*.cpp -lstdc++ -o testNoTeacher  
 
 ./main_noteacher
 
