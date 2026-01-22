@@ -36,7 +36,7 @@ int main() {
             losses++;
         } else {
             ties++;
-
+        }
         // print recorded W-L-T score
         std::cout << "Record (You): W=" << wins << " L=" << losses << " T=" << ties << "\n";
     }
