@@ -19,7 +19,7 @@ int main(int argc, char** argv) {
 
     // Create the learner and train from teacher examples
     Learner learner;
-    Experience::trainFromTeacherFile(argv[1], learner, 100);
+    Experience::trainFromTeacherFile(argv[1], learner, 1000);
     learner.printWeights(); // Display learned weight values
 
     int wins=0, losses=0, ties=0;

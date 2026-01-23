@@ -11,7 +11,7 @@
 int main() {
     // Create the learner and train via self-play
     Learner learner;
-    Experience::trainSelfPlay(learner, 1000);
+    Experience::trainSelfPlay(learner, 10000);
     learner.printWeights(); // Display learned weight values
 
     int wins=0, losses=0, ties=0;

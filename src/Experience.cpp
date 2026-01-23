@@ -7,6 +7,8 @@
 #include <sstream>
 #include <iostream>
 #include <vector>
+#include <cstdlib> 
+#include <ctime>   
 
 void Experience::trainFromTeacherFile(const std::string& path, Learner& learner, int gamesToUse) {
     std::ifstream fin(path); // file input
@@ -77,6 +79,20 @@ void Experience::trainFromTeacherFile(const std::string& path, Learner& learner,
             learner.update(FeatureEncoder::encode(st, -1), targetO);
         }
 
+        // --- Extra terminal-board updates so terminal win/loss features actually learn ---
+        if (w != 0) {
+            // Winner sees this terminal board as a win
+            learner.update(FeatureEncoder::encode(b, w), +1.0);
+        
+            // Loser sees this SAME terminal board as a loss
+            learner.update(FeatureEncoder::encode(b, -w), -1.0);
+        } else {
+            // Tie: both sides see 0
+            learner.update(FeatureEncoder::encode(b, +1), 0.0);
+            learner.update(FeatureEncoder::encode(b, -1), 0.0);
+        }
+
+
         used++; // game counter
     }
 
@@ -84,67 +100,93 @@ void Experience::trainFromTeacherFile(const std::string& path, Learner& learner,
 }
 
 
-// True self-play: the SAME learner controls both X and O.
-// Train from both sides and use successor-state bootstrapping:
-//   V_train(s) = V_hat(s') for nonterminal s, and terminal reward for terminal s.
 void Experience::trainSelfPlay(Learner& learner, int games) {
-   
+
+    const double epsStart = 0.95;  // more exploration early
+    const double epsEnd   = 0.02;  // mostly greedy near end
+
+
     struct Sample {
         Board after; // after-state (board after the move)
         int p;       // player who just moved (+1 for X, -1 for O)
     };
 
+    // Seed RNG once
+    static bool seeded = false;
+    if (!seeded) {
+        std::srand((unsigned)std::time(NULL));
+        seeded = true;
+    }
+
     for (int g = 0; g < games; g++) {
-        Board b; b.reset(); // reset board
+        Board b; b.reset();
+
+        double t = (games <= 1) ? 1.0 : (double)g / (double)(games - 1);
+        double epsilon = epsStart + (epsEnd - epsStart) * t; // linear decay
 
         std::vector<Sample> samples;
         samples.reserve(9);
 
         int player = +1; // X starts
-        while (!b.terminal()) {
 
-            // Both sides choose moves using the current evaluation function
-            auto mv = Player::chooseBestMove(b, player, learner);
+        while (!b.terminal()) {
+            std::vector<std::pair<int,int> > moves = b.legalMoves();
+            if (moves.empty()) break;
+
+            // Roll a random number in [0,1)
+            double roll = (double)std::rand() / (double)RAND_MAX;
+
+            std::pair<int,int> mv;
+
+            if (roll < epsilon) {
+                // Explore: random legal move
+                int idx = std::rand() % (int)moves.size();
+                mv = moves[idx];
+            } else {
+                // Exploit: greedy best move
+                mv = Player::chooseBestMove(b, player, learner);
+            }
+
             b.place(mv.first, mv.second, player);
 
-            // store after-state for the player who just moved
-            samples.push_back({b, player});
+            // Store after-state for the player who just moved
+            samples.push_back(Sample{b, player});
 
-            player = -player; // switch player
+            player = -player;
         }
 
-        // Determine final game outcome
         int w = b.winner();
 
-        // Give the final reward for player p based on the game result.
+        const Board terminalBoard = b;
+
         auto terminalValueFor = [&](int p) -> double {
-            if (w == 0) {
-                return 0.0;
-            }
+            if (w == 0) return 0.0;
             return (w == p) ? 1.0 : -1.0;
         };
 
-        // Loop over every stored position in the game
+        // TD-style target: terminal outcome at end, otherwise use next state's prediction
         for (size_t i = 0; i < samples.size(); i++) {
-            const Board& s = samples[i].after; // the board after move i
-            int p = samples[i].p;  // the player who just made that move
+            const Board& s = samples[i].after;
+            int p = samples[i].p;
 
             double target;
-
-            // If this state is terminal (or last stored move), use the final outcome
             if (s.terminal() || i + 1 >= samples.size()) {
                 target = terminalValueFor(p);
-
-            // Otherwise, use the learner’s predicted value of the next state
-            } else { 
-                const Board& succ = samples[i + 1].after; // the board after move i + 1
+            } else {
+                const Board& succ = samples[i + 1].after;
                 target = learner.predict(FeatureEncoder::encode(succ, p));
             }
 
-            // Update the weights so prediction for s moves toward target
             learner.update(FeatureEncoder::encode(s, p), target);
+        }
+        if (w != 0) {
+            int loser = -w; // if X won (+1), loser is O (-1), and vice versa
+
+            // From the loser's perspective, the terminal board is a loss => target = -1
+            learner.update(FeatureEncoder::encode(terminalBoard, loser), -1.0);
         }
     }
 
-    std::cout << "No-teacher (true self-play) training done. Games: " << games << "\n";
+    std::cout << "No-teacher (true self-play, epsilon-greedy) training done. Games: " << games << "\n";
 }
+
