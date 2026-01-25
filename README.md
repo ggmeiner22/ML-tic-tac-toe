@@ -47,7 +47,7 @@ g++ -std=c++11 -O2 -Iinclude -o testTeacher   main_teacher.cpp src/*.cpp
 ## File Overview
 ### Constants.h
 
-Defines global constants used throughout the project, including board size, number of features, initial weight values, and the learning rate. This centralizes configuration parameters for easy tuning and experimentation.
+Defines project-wide constants: board size (N), number of features (NUM_FEATS), initial weight value (INIT_W), and learning rate (ALPHA). Keeps tuning parameters in one place.
 
 ### Board.h / Board.cpp
 
@@ -57,7 +57,7 @@ This module handles move placement, legality checks, win detection, terminal sta
 ### FeatureEncoder.h / FeatureEncoder.cpp
 
 Encodes a board state into a fixed-length numerical feature vector from the perspective of a given player.
-These features are used by the learning algorithm to evaluate board positions and include piece counts, threat detection, and center control.
+These features are used by the learning algorithm to evaluate board positions and includes: bias, threat counts (two-in-a-row with an empty third), fork counts, center control, corner control, and terminal win/loss indicators.
 
 ### Learner.h / Learner.cpp
 
@@ -67,17 +67,17 @@ This module predicts the value of a board state and updates its weights during t
 ### Player.h / Player.cpp
 
 Defines the computer player’s move-selection policy.
-The player first checks for immediate wins or necessary blocks, then uses the learned value function to choose the best remaining move.
+It chooses the move that maximizes the learner’s predicted value of the resulting after-state (greedy evaluation)
 
 ### Experience.h / Experience.cpp
 
-Handles training the learner using either:
+Handles training the learner in two modes:
 
-1. Teacher-provided game data, or
+1. Teacher training: reads games from teacher_games.txt, stores after-states for X and O, and updates the learner using the final game outcome as the target for each side.
 
-2. True self-play, where the learner controls both players and learns from successive board states.
+2. True self-play: the same learner controls both players and updates values across successive after-states (includes an ε-greedy exploration to randomly select some board positions).
 
-This module generates training examples and applies learning updates.
+This module generates the training examples and applies learning updates.
 
 ### Play.h / Play.cpp
 
@@ -93,7 +93,7 @@ Provides utility functions used across the project, such as safely clearing inva
 Program entry point for teacher-based training.
 Loads a file of teacher games, trains the learner, prints learned weights, and allows interactive play against the trained model.
 
-### main_no_teacher.cpp (or equivalent self-play main)
+### main_noteacher.cpp
 
 Program entry point for no-teacher (self-play) training.
 Trains the learner using true self-play, prints learned weights, and allows interactive play against the trained model.
