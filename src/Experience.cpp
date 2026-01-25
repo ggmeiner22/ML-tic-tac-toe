@@ -103,7 +103,7 @@ void Experience::trainFromTeacherFile(const std::string& path, Learner& learner,
 void Experience::trainSelfPlay(Learner& learner, int games) {
 
     const double epsStart = 0.95;  // more exploration early
-    const double epsEnd   = 0.02;  // mostly greedy near end
+    const double epsEnd   = 0.02;  // less greedy near end
 
 
     struct Sample {
@@ -155,12 +155,15 @@ void Experience::trainSelfPlay(Learner& learner, int games) {
             player = -player;
         }
 
-        int w = b.winner();
+        int w = b.winner(); // finds winner
 
         const Board terminalBoard = b;
 
+        // assigns reward
         auto terminalValueFor = [&](int p) -> double {
-            if (w == 0) return 0.0;
+            if (w == 0) {
+                return 0.0;
+            }
             return (w == p) ? 1.0 : -1.0;
         };
 
