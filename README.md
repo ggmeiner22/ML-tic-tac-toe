@@ -13,8 +13,8 @@ g++ -std=c++11 -O2 -Iinclude -o testTeacher   main_teacher.cpp src/*.cpp
 ```
 #### Execution
 ```
-./main_noteacher
-./main_teacher teacher_games.txt
+./testNoTeacher
+./testTeacher teacher_games.txt
 ```
 ## File Structure
 ```
